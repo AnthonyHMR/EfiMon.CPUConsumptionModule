@@ -1,0 +1,37 @@
+sudo ./loader "ArchivoPrueba".bpf.o
+sudo cat /sys/kernel/debug/tracing/trace_pipe
+
+
+A) syscalls/sys_enter_execve y sys_exit_execve
+ls
+echo "hola"
+cat /etc/passwd
+
+sys_enter_execve: pid=1234 filename=/usr/bin/ls
+
+
+B) sched/sched_switch
+Se dispara cada vez que el kernel cambia de proceso.
+
+Se veran muchas líneas de sched_switch: prev -> next mientras se usa el sistema.
+
+C) sched/sched_wakeup
+Se dispara cuando un proceso que estaba dormido pasa a runnable.
+
+sched_wakeup: comm=firefox pid=4321 prio=120 success=1
+
+
+D) sched_process_exit
+Se dispara cuando un proceso termina.
+sleep 1
+
+sched_process_exit: comm=sleep pid=5678
+
+
+E) sched_process_fork
+Se dispara cuando un proceso crea un hijo (fork()).
+bash -c 'echo hola'
+
+sched_process_fork: parent=bash(1234) -> child=bash(5678)
+
+

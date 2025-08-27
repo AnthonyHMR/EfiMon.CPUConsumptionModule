@@ -1,0 +1,9 @@
+read → cat /etc/passwd
+
+write → echo "hola"
+
+openat → nano /tmp/test
+
+close → cualquier archivo que se abra/cierre en scripts
+
+clone → bash -c "sleep 1" o cualquier fork
