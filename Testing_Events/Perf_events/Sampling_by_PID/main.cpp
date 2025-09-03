@@ -52,7 +52,8 @@ int main(int argc, char **argv) {
     attr.type = PERF_TYPE_HARDWARE;
     attr.config = PERF_COUNT_HW_CPU_CYCLES;  // ciclos → da IP
     attr.size = sizeof(attr);
-    attr.sample_period = 100000; // cada 100k ciclos (~frecuencia)
+    attr.freq = 1;
+    attr.sample_freq = 1000; // 1k muestras por segundo
     attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_TIME;
     attr.precise_ip = 2; // lo más preciso posible
     attr.disabled = 0;
