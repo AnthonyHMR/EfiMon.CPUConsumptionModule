@@ -1,4 +1,3 @@
-// main.cpp
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include <linux/perf_event.h>
@@ -29,51 +28,53 @@ static int perf_event_open(struct perf_event_attr *attr, pid_t pid, int cpu,
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <PID>\n";
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <PID> <hits|misses>\n";
         return 1;
     }
+
     pid_t target_pid = atoi(argv[1]);
+    std::string type = argv[2];
+
+    uint32_t result_flag;
+    if (type == "hits") {
+        result_flag = PERF_COUNT_HW_CACHE_RESULT_ACCESS;
+    } else if (type == "misses") {
+        result_flag = PERF_COUNT_HW_CACHE_RESULT_MISS;
+    } else {
+        std::cerr << "Invalid type, must be 'hits' or 'misses'\n";
+        return 1;
+    }
 
     signal(SIGINT, sig_handler);
 
+    // Cargar eBPF
     struct prog_bpf *skel = prog_bpf__open_and_load();
     if (!skel) {
         std::cerr << "Failed to open/load BPF skeleton\n";
         return 1;
     }
 
+    // Configurar perf_event
     struct perf_event_attr attr{};
     memset(&attr, 0, sizeof(attr));
     attr.type = PERF_TYPE_HW_CACHE;
     attr.size = sizeof(attr);
-
-    // Config = L1D | READ | MISS
-    attr.config =
-        PERF_COUNT_HW_CACHE_L1D |
-        (PERF_COUNT_HW_CACHE_OP_READ << 8) |
-        (PERF_COUNT_HW_CACHE_RESULT_MISS << 16);
-
-    attr.sample_period = 1000; // notificar cada 1000 misses
+    attr.config = PERF_COUNT_HW_CACHE_L1D |
+                  (PERF_COUNT_HW_CACHE_OP_READ << 8) |
+                  (result_flag << 16);
+    attr.sample_period = 1000; // cada 1000 hits/misses
     attr.disabled = 0;
 
-    int prog_fd = bpf_program__fd(skel->progs.on_cache_miss);
+    int prog_fd = bpf_program__fd(skel->progs.on_cache_miss); // handler único para ambos
 
-    // Abrimos un perf_event ligado SOLO al PID target
+    // Abrir perf_event para el PID target
     int fd = perf_event_open(&attr, target_pid, -1, -1, 0);
-    if (fd < 0) {
-        perror("perf_event_open");
-        return 1;
-    }
-    if (ioctl(fd, PERF_EVENT_IOC_SET_BPF, prog_fd) < 0) {
-        perror("PERF_EVENT_IOC_SET_BPF");
-        return 1;
-    }
-    if (ioctl(fd, PERF_EVENT_IOC_ENABLE, 0) < 0) {
-        perror("PERF_EVENT_IOC_ENABLE");
-        return 1;
-    }
+    if (fd < 0) { perror("perf_event_open"); return 1; }
+    if (ioctl(fd, PERF_EVENT_IOC_SET_BPF, prog_fd) < 0) { perror("PERF_EVENT_IOC_SET_BPF"); return 1; }
+    if (ioctl(fd, PERF_EVENT_IOC_ENABLE, 0) < 0) { perror("PERF_EVENT_IOC_ENABLE"); return 1; }
 
+    // Configurar ring buffer
     auto handle_event = [](void *ctx, void *data, size_t size) {
         auto *s = (sample_t *)data;
         std::cout << "PID " << s->pid
@@ -86,10 +87,7 @@ int main(int argc, char **argv) {
 
     struct ring_buffer *rb = ring_buffer__new(bpf_map__fd(skel->maps.rb),
                                               handle_event, nullptr, nullptr);
-    if (!rb) {
-        std::cerr << "Failed to setup ring buffer\n";
-        return 1;
-    }
+    if (!rb) { std::cerr << "Failed to setup ring buffer\n"; return 1; }
 
     while (!exiting) {
         ring_buffer__poll(rb, 100);
