@@ -32,52 +32,57 @@ static int perf_event_open(struct perf_event_attr *attr, pid_t pid, int cpu,
 int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
 
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <PID> <cache> <hits|misses>\n";
-        std::cerr << "cache = l1d | l1i | llc\n";
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0]
+                  << " <PID> <event> [hits|misses]\n";
+        std::cerr << "event = l1d | l1i | llc | branch_misses\n";
         return 1;
     }
 
     pid_t target_pid = atoi(argv[1]);
-    std::string cache = argv[2];
-    std::string type = argv[3];
+    std::string event = argv[2];
+    std::string type = argc >= 4 ? argv[3] : "";
+
+    struct perf_event_attr attr{};
+    memset(&attr, 0, sizeof(attr));
+    attr.size = sizeof(attr);
 
     // -------------------
     // Selección de evento
     // -------------------
-    uint32_t result_flag;
-    if (type == "hits") {
-        result_flag = PERF_COUNT_HW_CACHE_RESULT_ACCESS;
-    } else if (type == "misses") {
-        result_flag = PERF_COUNT_HW_CACHE_RESULT_MISS;
+    if (event == "branch_misses") {
+        attr.type = PERF_TYPE_HARDWARE;
+        attr.config = PERF_COUNT_HW_BRANCH_MISSES;
     } else {
-        std::cerr << "Invalid type, must be 'hits' or 'misses'\n";
-        return 1;
+        uint32_t result_flag;
+        if (type == "hits") {
+            result_flag = PERF_COUNT_HW_CACHE_RESULT_ACCESS;
+        } else if (type == "misses") {
+            result_flag = PERF_COUNT_HW_CACHE_RESULT_MISS;
+        } else {
+            std::cerr << "For cache events, you must specify 'hits' or 'misses'\n";
+            return 1;
+        }
+
+        uint32_t cache_flag;
+        uint32_t op_flag = PERF_COUNT_HW_CACHE_OP_READ; // default: lecturas
+
+        if (event == "l1d") {
+            cache_flag = PERF_COUNT_HW_CACHE_L1D;
+        } else if (event == "l1i") {
+            cache_flag = PERF_COUNT_HW_CACHE_L1I;
+            op_flag = PERF_COUNT_HW_CACHE_OP_READ; // fetch de instrucciones
+        } else if (event == "llc") {
+            cache_flag = PERF_COUNT_HW_CACHE_LL;
+        } else {
+            std::cerr << "Invalid cache, must be l1d, l1i, llc or branch_misses\n";
+            return 1;
+        }
+
+        attr.type = PERF_TYPE_HW_CACHE;
+        attr.config = cache_flag | (op_flag << 8) | (result_flag << 16);
     }
 
-    uint32_t cache_flag;
-    uint32_t op_flag = PERF_COUNT_HW_CACHE_OP_READ; // default: lecturas
-
-    if (cache == "l1d") {
-        cache_flag = PERF_COUNT_HW_CACHE_L1D;
-    } else if (cache == "l1i") {
-        cache_flag = PERF_COUNT_HW_CACHE_L1I;
-        op_flag = PERF_COUNT_HW_CACHE_OP_READ; // fetch de instrucciones
-    } else if (cache == "llc") {
-        cache_flag = PERF_COUNT_HW_CACHE_LL;
-    } else {
-        std::cerr << "Invalid cache, must be l1d, l1i or llc\n";
-        return 1;
-    }
-
-    // -------------------
-    // Config perf_event
-    // -------------------
-    struct perf_event_attr attr{};
-    memset(&attr, 0, sizeof(attr));
-    attr.type = PERF_TYPE_HW_CACHE;
-    attr.size = sizeof(attr);
-    attr.config = cache_flag | (op_flag << 8) | (result_flag << 16);
     attr.disabled = 0;
     attr.inherit = 1;
     attr.exclude_kernel = 0;
@@ -104,8 +109,9 @@ int main(int argc, char **argv) {
     // Loop de muestreo
     // -------------------
     std::cout << "Monitoring PID " << target_pid
-              << " cache=" << cache
-              << " type=" << type << " ... Press Ctrl+C to stop\n";
+              << " event=" << event
+              << (type.empty() ? "" : " type=" + type)
+              << " ... Press Ctrl+C to stop\n";
 
     while (!exiting) {
         uint64_t count = 0;
