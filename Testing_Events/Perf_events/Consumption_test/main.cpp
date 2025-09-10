@@ -15,14 +15,7 @@
 static volatile bool exiting = false;
 static void sig_handler(int signo) { exiting = true; }
 
-// Contador global de muestras
-static size_t sample_count = 0;
-
-int handle_event(void* ctx, void* data, size_t size) {
-    sample_count++; // contar cada muestra
-    return 0;
-}
-
+// Estructura de cada muestra (igual a la enviada desde eBPF)
 struct sample_t {
     uint32_t pid;
     uint32_t tid;
@@ -30,6 +23,19 @@ struct sample_t {
     uint64_t ts;
 };
 
+// Buffer global donde se almacenarán todas las muestras
+static std::vector<sample_t> samples;
+
+int handle_event(void* ctx, void* data, size_t size) {
+    if (size == sizeof(sample_t)) {
+        sample_t s;
+        memcpy(&s, data, size);
+        samples.push_back(s);  // Guardar en el vector global
+    }
+    return 0;
+}
+
+// syscall perf_event_open
 static int perf_event_open(struct perf_event_attr *attr, pid_t pid, int cpu,
                            int group_fd, unsigned long flags) {
     return syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags);
@@ -66,7 +72,7 @@ int main(int argc, char **argv) {
     attr.config = PERF_COUNT_HW_CACHE_L1D |
                   (PERF_COUNT_HW_CACHE_OP_READ<<8) |
                   (result_flag<<16);
-    attr.sample_period = 1000000/freq; // period aproximado
+    attr.sample_period = 1000000/freq; // periodo aproximado
     attr.disabled = 0;
 
     int prog_fd = bpf_program__fd(skel->progs.on_cache_miss);
@@ -92,7 +98,10 @@ int main(int argc, char **argv) {
     prog_bpf__destroy(skel);
     close(fd);
 
-    // Al finalizar, sample_count tiene el total de muestras
+    // En este punto, todas las muestras están en `samples`
+    // (no imprimimos nada para no sesgar consumo)
+    // Puedes procesarlas después con Capstone u otra librería
+
     return 0;
 }
 
