@@ -1,41 +1,50 @@
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include <linux/perf_event.h>
-#include <sys/syscall.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 #include <iostream>
-#include <vector>
 #include <csignal>
+#include <vector>
 #include <cstring>
-#include <cstdlib>
 
-#include "prog.skel.h"
-
-static volatile bool exiting = false;
-static void sig_handler(int signo) { exiting = true; }
-
+// Estructura de muestra
 struct sample_t {
     uint32_t pid;
     uint32_t tid;
-    uint64_t ip;
+    uint64_t count;
     uint64_t ts;
 };
 
+static volatile bool exiting = false;
+
+static void sig_handler(int signo) {
+    exiting = true;
+}
+
+// syscall perf_event_open
 static int perf_event_open(struct perf_event_attr *attr, pid_t pid, int cpu,
                            int group_fd, unsigned long flags) {
     return syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags);
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <PID> <hits|misses>\n";
+    signal(SIGINT, sig_handler);
+
+    if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " <PID> <cache> <hits|misses>\n";
+        std::cerr << "cache = l1d | l1i | llc\n";
         return 1;
     }
 
     pid_t target_pid = atoi(argv[1]);
-    std::string type = argv[2];
+    std::string cache = argv[2];
+    std::string type = argv[3];
 
+    // -------------------
+    // Selección de evento
+    // -------------------
     uint32_t result_flag;
     if (type == "hits") {
         result_flag = PERF_COUNT_HW_CACHE_RESULT_ACCESS;
@@ -46,55 +55,76 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    signal(SIGINT, sig_handler);
+    uint32_t cache_flag;
+    uint32_t op_flag = PERF_COUNT_HW_CACHE_OP_READ; // default: lecturas
 
-    // Cargar eBPF
-    struct prog_bpf *skel = prog_bpf__open_and_load();
-    if (!skel) {
-        std::cerr << "Failed to open/load BPF skeleton\n";
+    if (cache == "l1d") {
+        cache_flag = PERF_COUNT_HW_CACHE_L1D;
+    } else if (cache == "l1i") {
+        cache_flag = PERF_COUNT_HW_CACHE_L1I;
+        op_flag = PERF_COUNT_HW_CACHE_OP_READ; // fetch de instrucciones
+    } else if (cache == "llc") {
+        cache_flag = PERF_COUNT_HW_CACHE_LL;
+    } else {
+        std::cerr << "Invalid cache, must be l1d, l1i or llc\n";
         return 1;
     }
 
-    // Configurar perf_event
+    // -------------------
+    // Config perf_event
+    // -------------------
     struct perf_event_attr attr{};
     memset(&attr, 0, sizeof(attr));
     attr.type = PERF_TYPE_HW_CACHE;
     attr.size = sizeof(attr);
-    attr.config = PERF_COUNT_HW_CACHE_L1D |
-                  (PERF_COUNT_HW_CACHE_OP_READ << 8) |
-                  (result_flag << 16);
-    attr.sample_period = 1000; // cada 1000 hits/misses
+    attr.config = cache_flag | (op_flag << 8) | (result_flag << 16);
     attr.disabled = 0;
+    attr.inherit = 1;
+    attr.exclude_kernel = 0;
+    attr.exclude_hv = 0;
 
-    int prog_fd = bpf_program__fd(skel->progs.on_cache_miss); // handler único para ambos
-
-    // Abrir perf_event para el PID target
     int fd = perf_event_open(&attr, target_pid, -1, -1, 0);
-    if (fd < 0) { perror("perf_event_open"); return 1; }
-    if (ioctl(fd, PERF_EVENT_IOC_SET_BPF, prog_fd) < 0) { perror("PERF_EVENT_IOC_SET_BPF"); return 1; }
-    if (ioctl(fd, PERF_EVENT_IOC_ENABLE, 0) < 0) { perror("PERF_EVENT_IOC_ENABLE"); return 1; }
-
-    // Configurar ring buffer
-    auto handle_event = [](void *ctx, void *data, size_t size) {
-        auto *s = (sample_t *)data;
-        std::cout << "PID " << s->pid
-                  << " TID " << s->tid
-                  << " IP 0x" << std::hex << s->ip
-                  << " TS " << std::dec << s->ts
-                  << "\n";
-        return 0;
-    };
-
-    struct ring_buffer *rb = ring_buffer__new(bpf_map__fd(skel->maps.rb),
-                                              handle_event, nullptr, nullptr);
-    if (!rb) { std::cerr << "Failed to setup ring buffer\n"; return 1; }
-
-    while (!exiting) {
-        ring_buffer__poll(rb, 100);
+    if (fd < 0) {
+        perror("perf_event_open");
+        return 1;
     }
 
-    ring_buffer__free(rb);
-    prog_bpf__destroy(skel);
+    if (ioctl(fd, PERF_EVENT_IOC_RESET, 0) < 0) {
+        perror("ioctl(PERF_EVENT_IOC_RESET)");
+        close(fd);
+        return 1;
+    }
+    if (ioctl(fd, PERF_EVENT_IOC_ENABLE, 0) < 0) {
+        perror("ioctl(PERF_EVENT_IOC_ENABLE)");
+        close(fd);
+        return 1;
+    }
+
+    // -------------------
+    // Loop de muestreo
+    // -------------------
+    std::cout << "Monitoring PID " << target_pid
+              << " cache=" << cache
+              << " type=" << type << " ... Press Ctrl+C to stop\n";
+
+    while (!exiting) {
+        uint64_t count = 0;
+        ssize_t res = read(fd, &count, sizeof(count));
+        if (res != sizeof(count)) {
+            perror("read");
+            break;
+        }
+
+        uint64_t ts = static_cast<uint64_t>(time(nullptr)) * 1000000000ULL;
+
+        std::cout << "PID " << target_pid
+                  << " COUNT=" << count
+                  << " TS=" << ts << "\n";
+
+        sleep(1); // tomar muestra cada segundo
+    }
+
+    ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
     close(fd);
     return 0;
 }
