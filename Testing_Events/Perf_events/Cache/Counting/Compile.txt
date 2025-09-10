@@ -1,0 +1,17 @@
+cache_count.cpp:
+g++ -O0 -g cache_count.cpp -o cache_count
+
+
+eBPF:
+clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c prog.bpf.c -o prog.bpf.o
+bpftool gen skeleton prog.bpf.o > prog.skel.h
+
+g++ -O0 -g cache_sampler.cpp -o cache_sampler -lbpf -lelf -pthread
+
+
+Para este programa se me pide hacer lo siguiente: 
+Ver cuanto se ralentiza el proceso medido.
+Cuanto consume el programa muestreador.
+No usar prints y usar -O0 cuando se compila.
+Sumar los hits/misses y revelarlos cada segundo.
+Variar frecuencia de muestreo.
