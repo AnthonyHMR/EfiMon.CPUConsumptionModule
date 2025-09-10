@@ -1,0 +1,12 @@
+Programa eBPF:
+clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c prog.bpf.c -o prog.bpf.o
+bpftool gen skeleton prog.bpf.o > prog.skel.h
+
+g++ -O0 -g main.cpp -lbpf -lelf -o cache_sampler
+
+sudo ./cache_sampler 1234 hits --freq=2000 --duration=5
+
+
+Benchmark:
+gcc -O3 matmul_bench.c -o matmul_bench -I/usr/include/openblas -lopenblas -lm
+

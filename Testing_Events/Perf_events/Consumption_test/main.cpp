@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
 
     // En este punto, todas las muestras están en `samples`
     // (no imprimimos nada para no sesgar consumo)
-    // Puedes procesarlas después con Capstone u otra librería
+    // Hay que procesarlas después con Capstone u otra librería
 
     return 0;
 }
