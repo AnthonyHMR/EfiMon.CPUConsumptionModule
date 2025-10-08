@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Cargar CSV
-df = pd.read_csv("results.csv")
+df = pd.read_csv("resultsfreq.csv")
 
 # Calcular ralentización como ratio (nuevo / baseline)
 df["slowdown_ratio"] = df["time_with_sampler"] / df["time_no_sampler"]

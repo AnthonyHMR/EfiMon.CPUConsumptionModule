@@ -2,12 +2,11 @@
 set -euo pipefail
 
 # Configurables
-BENCH="./benchmark"              # ejecutable del benchmark
-SAMPLER="./cache_sampler"        # sampler ya compilado
-EVENT_TYPE="misses"              # "hits" o "misses"
-FREQ=1000                    # frecuencia aproximada para sampler (Hz)
-DURATION=10                      # duracion del sampler (No relevante, ya que se calcula una esperada)
-RESULTS="results.csv"
+BENCH="./build/benchmark"              # ejecutable del benchmark
+SAMPLER="./build/sampler"              # sampler ya compilado
+FREQ=50000                   # periodo de muestreo para sampler
+DURATION=10                            # duracion del sampler (No relevante, ya que se calcula una esperada)
+RESULTS="./data/results/results.csv"
 
 # Parámetros del benchmark
 N=3000      # tamaño matriz
@@ -26,7 +25,7 @@ fi
 
 # CSV header
 if [ ! -f "$RESULTS" ]; then
-  echo "freq,event_type,N,reps,warmup,time_no_sampler,time_with_sampler,slowdown_percent" > "$RESULTS"
+  echo "freq,N,reps,warmup,time_no_sampler,time_with_sampler,slowdown_percent" > "$RESULTS"
 fi
 
 # Helper para extraer el tiempo del benchmark
@@ -36,17 +35,17 @@ parse_time() {
 }
 
 # --- Baseline ---
-OUTFILE="bench_no_sampler.out"
+OUTFILE="./data/results/bench_no_sampler.out"
 $BENCH $N $REPS $WARMUP > "$OUTFILE" 2>&1
 time_no_sampler=$(parse_time "$OUTFILE")
 
 # --- Benchmark con sampler ---
-OUTFILE2="bench_with_sampler.out"
+OUTFILE2="./data/results/bench_with_sampler.out"
 $BENCH $N $REPS $WARMUP > "$OUTFILE2" 2>&1 & bench_pid=$!
 sleep 0.05
 
 expected=$(awk "BEGIN{print $time_no_sampler * 1.5 + $DURATION}")
-sudo $SAMPLER "$bench_pid" "$EVENT_TYPE" --freq="$FREQ" --duration="$expected" >/dev/null 2>&1 &
+sudo $SAMPLER "$bench_pid" "$FREQ" "$expected" >/dev/null 2>&1 &
 sampler_pid=$!
 
 wait $bench_pid
@@ -62,7 +61,7 @@ slowdown=$(awk -v t0="$time_no_sampler" -v t1="$time_with_sampler" \
               'BEGIN{ if (t0==0) print "nan"; else printf("%.6f", (t1 - t0) / t0 * 100.0) }')
 
 # Guardar en el csv
-echo "$FREQ,$EVENT_TYPE,$N,$REPS,$WARMUP,$time_no_sampler,$time_with_sampler,$slowdown" >> "$RESULTS"
+echo "$FREQ,$N,$REPS,$WARMUP,$time_no_sampler,$time_with_sampler,$slowdown" >> "$RESULTS"
 
 echo "Results saved to $RESULTS"
 echo "Slowdown % = $slowdown"

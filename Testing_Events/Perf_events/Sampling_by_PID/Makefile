@@ -92,16 +92,16 @@ $(BENCH_BIN): $(BENCH_SRC)
 
 run:
 ifndef PID
-	$(error Debes pasar el PID del proceso a monitorear. Ejemplo: make run PID=1234 SP=1000 D=10)
+	$(error Debes pasar el PID del proceso a monitorear. Ejemplo: make run PID=1234 F=1000 D=10)
 endif
-ifndef SP
-	$(error Debes pasar el periodo de muestreo. Ejemplo: make run PID=1234 SP=1000 D=10)
+ifndef F
+	$(error Debes pasar la frecuencia de muestreo. Ejemplo: make run PID=1234 F=1000 D=10)
 endif
 ifndef D
-	$(error Debes pasar la duración. Ejemplo: make run PID=1234 SP=1000 D=10)
+	$(error Debes pasar la duración. Ejemplo: make run PID=1234 F=1000 D=10)
 endif
 	@echo "Ejecutando programa (PID=$(PID))..."
-	sudo $(USER_BIN) $(PID) $(SP) $(D)
+	sudo $(USER_BIN) $(PID) $(F) $(D)
 
 # ========================
 # Ejecutar script de pruebas

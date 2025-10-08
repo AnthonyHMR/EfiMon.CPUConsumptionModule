@@ -27,7 +27,7 @@ EfiMon.CPUConsumptionModule/
 │   │   ├── bench_with_sampler.out 
 │   │   └── results.csv                       # Resultados crudos del benchmark
 │   └── plots/
-│       └── slowdown_vs_sample_period.png     # Imagen del plot con los resultados de las pruebas
+│       └── slowdown_vs_freq.png     # Imagen del plot con los resultados de las pruebas
 │
 ├── scripts/
 │   └── run_tests.sh                          # Script para ejecutar el benchmark
@@ -68,12 +68,12 @@ Esto generará:
 1. Ejecutar el sampler sobre un proceso
 Para monitorear un proceso específico (por su PID):
 ```bash
-sudo make run PID=<PID> SP=<SAMPLE_PERIOD> D=<DURATION>
+sudo make run PID=<PID> F=<FREQUENCY> D=<DURATION>
 ```
 
 2. Ejecutarlo de forma manual
 ```bash
-./build/sampler <PID> SAMPLE_PERIOD> <DURATION>
+./build/sampler <PID> <FREQUENCY> <DURATION>
 ```
 
 ## Ejecución de pruebas
@@ -84,7 +84,7 @@ make test
 
 Este guarda los resultados en: data/results.csv
 
-**NOTA: Para ver y obtener mejores resultados (principalmente en el plot), se recomienda ejecutar las pruebas varias veces con distintos periodos de muestreo. Puedes modificar el valor de SAMPLE_PERIOD editando el archivo: scripts/run_tests.sh**
+**NOTA: Para ver y obtener mejores resultados (principalmente en el plot), se recomienda ejecutar las pruebas varias veces con distintas frecuencias de muestreo. Puedes modificar el valor de FREQ editando el archivo: scripts/run_tests.sh**
 
 ## Visualización de resultados
 Para generar los gráficos:
@@ -92,7 +92,7 @@ Para generar los gráficos:
 make plot
 ```
 
-El script scripts/analyze_results.py lee el archivo CSV con los resultados y produce una gráfica slowdown vs sample period en:
+El script scripts/analyze_results.py lee el archivo CSV con los resultados y produce una gráfica slowdown vs frequency en:
 ```bash
 data/plots/
 ```

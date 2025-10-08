@@ -5,9 +5,9 @@ set -euo pipefail
 BENCH="./benchmark"              # ejecutable del benchmark
 SAMPLER="./cache_sampler"        # sampler ya compilado
 EVENT_TYPE="misses"              # "hits" o "misses"
-FREQ=1000                    # frecuencia aproximada para sampler (Hz)
+FREQ=2000                    # frecuencia aproximada para sampler (Hz)
 DURATION=10                      # duracion del sampler (No relevante, ya que se calcula una esperada)
-RESULTS="results.csv"
+RESULTS="resultsfreq.csv"
 
 # Parámetros del benchmark
 N=3000      # tamaño matriz

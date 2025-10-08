@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     int target_pid = atoi(argv[1]);
-    uint64_t sample_period = strtoull(argv[2], nullptr, 10);
+    uint64_t freq = strtoull(argv[2], nullptr, 10);
     int duration = atoi(argv[3]);
 
     signal(SIGINT, sig_handler);
@@ -63,7 +63,9 @@ int main(int argc, char **argv) {
     attr.config = PERF_COUNT_HW_CPU_CYCLES;
     attr.size = sizeof(attr);
     attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_TIME;
-    attr.sample_period = sample_period;
+    //attr.sample_period = freq;
+    attr.freq = 1;
+    attr.sample_freq = freq;   // en Hz, directo
     attr.precise_ip = 2;
     attr.disabled = 0;
 
