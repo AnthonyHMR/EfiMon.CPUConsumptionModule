@@ -72,7 +72,9 @@ int main(int argc, char **argv) {
     attr.config = PERF_COUNT_HW_CACHE_L1D |
                   (PERF_COUNT_HW_CACHE_OP_READ<<8) |
                   (result_flag<<16);
-    attr.sample_period = 1000000/freq; // periodo aproximado
+    attr.sample_period = freq; // periodo aproximado
+    //attr.freq = 1;
+    //attr.sample_freq = freq;   // en Hz, directo
     attr.disabled = 0;
 
     int prog_fd = bpf_program__fd(skel->progs.on_cache_miss);

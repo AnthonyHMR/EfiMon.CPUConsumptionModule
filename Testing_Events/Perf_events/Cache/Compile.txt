@@ -4,11 +4,15 @@ bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
 prog.bpf.c:
 clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c prog.bpf.c -o prog.bpf.o
 
-
-main.cpp:
 Generar skeleton
 bpftool gen skeleton prog.bpf.o > prog.skel.h
 
+main.cpp:
 Compilar
 g++ -O2 -g -Wall main.cpp -o sampler -lbpf
 
+sudo ./cache_sampler 1234 l1d misses
+
+Parametros:
+hits | misses
+l1d | l1i | llc

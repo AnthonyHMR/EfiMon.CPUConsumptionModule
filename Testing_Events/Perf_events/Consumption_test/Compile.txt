@@ -8,5 +8,11 @@ sudo ./cache_sampler 1234 hits --freq=2000 --duration=5
 
 
 Benchmark:
-gcc -O3 matmul_bench.c -o matmul_bench -I/usr/include/openblas -lopenblas -lm
+gcc -O0 benchmark.c -o benchmark -I/usr/include/openblas -lopenblas -lm
+./matmul_bench <N> <reps>
+
+chmod +x run_tests.sh
+./run_tests.sh
+
+
 
