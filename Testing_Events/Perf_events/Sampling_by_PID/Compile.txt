@@ -1,14 +1,25 @@
 Generar vmlinux.h:
 bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
 
-prog.bpf.c:
+Programa eBPF:
 clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c prog.bpf.c -o prog.bpf.o
 
-
-main.cpp:
-Generar skeleton
+Generar skeleton:
 bpftool gen skeleton prog.bpf.o > prog.skel.h
 
-Compilar
-g++ -O2 -g -Wall main.cpp -o sampler -lbpf
+Compilar:
+g++ -O0 -g -Wall main.cpp -o sampler -lbpf
+
+sudo ./sampler <PID>
+
+
+Benchmark:
+gcc -O0 benchmark.c -o benchmark -I/usr/include/openblas -lopenblas -lm
+./matmul_bench <N> <reps>
+
+Testing script:
+chmod +x run_tests.sh
+./run_tests.sh
+
+
 
